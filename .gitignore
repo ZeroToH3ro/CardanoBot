@@ -6,4 +6,5 @@
 *.iml
 out
 gen
-.env
+.env!/src/bot/handlers/dex_handlers.py
+!/src/bot/handlers/cardano_handlers.py
