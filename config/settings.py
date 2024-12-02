@@ -22,3 +22,6 @@ KOIOS_HEADERS = {
     "accept": "application/json",
     "content-type": "application/json"
 }
+
+# Chanel ID
+CHANNEL_ID = "@cardano_hunter"

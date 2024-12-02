@@ -2,6 +2,7 @@ import koios_api
 from telebot import TeleBot
 from src.bot.services.dex_service import DexHunterService
 from src.bot.services.cardano_service import CardanoService
+from src.bot.services.worker_service import WorkerService
 from src.bot.utils.formatters import FormatUtils
 from src.bot.utils.mapping_token_name import FormatTokenName
 
@@ -108,6 +109,24 @@ def register_base_handlers(bot: TeleBot):
 
         except Exception as e:
             bot.reply_to(message, f"❌ Error: {str(e)}")
+
+    @bot.message_handler(commands=['feargreed'])
+    def handle_fear_greed(message):
+        """Handle manual fear and greed index requests"""
+
+        bot.reply_to(message, "Fetching Fear & Greed Index... 🔍")
+
+        dex_service = DexHunterService()
+        result = dex_service.get_fear_greed()
+
+        if isinstance(result, str) and result.startswith("Error"):
+            bot.reply_to(message, f"Error fetching Fear & Greed Index: {result}")
+            return
+
+        worker = WorkerService(bot)
+        formatted_message = worker._format_fear_greed_message(result)
+        bot.reply_to(message, formatted_message, parse_mode='HTML')
+
 
     # Cardano Handler
 

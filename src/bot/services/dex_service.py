@@ -36,3 +36,17 @@ class DexHunterService:
             return response.json()
         except requests.exceptions.RequestException as e:
             return f"Error: {str(e)}"
+
+    @staticmethod
+    def get_fear_greed():
+        url = f"{DEXHUNTER_API_URL}/stats/fear_and_greed"
+        payload = {
+            "period": "24h"
+        }
+
+        try:
+            response = requests.post(url, json=payload, headers=DEXHUNTER_HEADERS)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            return f"Error: {str(e)}"
