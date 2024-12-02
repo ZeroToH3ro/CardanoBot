@@ -3,6 +3,7 @@ from telebot import TeleBot
 from src.bot.services.dex_service import DexHunterService
 from src.bot.services.cardano_service import CardanoService
 from src.bot.utils.formatters import FormatUtils
+from src.bot.utils.mapping_token_name import FormatTokenName
 
 
 def register_base_handlers(bot: TeleBot):
@@ -25,6 +26,8 @@ def register_base_handlers(bot: TeleBot):
         """
         bot.reply_to(message, welcome_text)
 
+    # Dex Service
+
     @bot.message_handler(commands=['trending', 'trending_1h', 'trending_24h'])
     def get_trending_pairs(message):
         period = {
@@ -37,6 +40,7 @@ def register_base_handlers(bot: TeleBot):
 
         dex_service = DexHunterService()
         result = dex_service.get_trending(period)
+        tokens_mapping = FormatTokenName.load_token_name()
 
         if isinstance(result, str):
             bot.reply_to(message, f"Error fetching trending pairs: {result}")
@@ -48,7 +52,7 @@ def register_base_handlers(bot: TeleBot):
         for pair in pairs:
             token_id = pair['token_id']
             short_token = token_id[:10] + "..." + token_id[-4:] if len(token_id) > 14 else token_id
-
+            token_name = tokens_mapping.get(token_id, "Unknown Token")
             current_volume = pair['current_period_volume']
             volume_change = pair['volume_change_percentage']
             price_change = pair['price_change_percentage']
@@ -57,7 +61,8 @@ def register_base_handlers(bot: TeleBot):
             volume_formatted = f"{current_volume:,.2f}"
             price_formatted = f"{current_price:.8f}" if current_price < 0.01 else f"{current_price:.4f}"
 
-            response_text += f"📊 Token: {short_token}\n"
+            response_text += f"📊 Token Id: {short_token}\n"
+            response_text += f"📊 Token Name: {token_name}\n"
             response_text += f"💰 Current Price: {price_formatted}\n"
             response_text += f"📈 Volume: ${volume_formatted}\n"
             response_text += f"📊 Volume Change: {volume_change:,.2f}%\n"
@@ -103,6 +108,8 @@ def register_base_handlers(bot: TeleBot):
 
         except Exception as e:
             bot.reply_to(message, f"❌ Error: {str(e)}")
+
+    # Cardano Handler
 
     @bot.message_handler(commands=['tip'])
     def get_chain_tip(message):
@@ -215,16 +222,9 @@ def register_base_handlers(bot: TeleBot):
                 return
 
             response_text = "📍 *Address Information*\n\n"
-
-            # Convert balance from lovelace to ADA (1 ADA = 1,000,000 lovelace)
-            balance_ada = int(result['balance']) / 1_000_000
-            response_text += f"💰 *Balance:* `{balance_ada:,.6f} ADA`\n"
-
-            # Handle null stake address
+            response_text += f"💰 *Balance:* `{FormatUtils.format_ada(result['balance'])} ADA`\n"
             stake_address = result['stake_address'] if result['stake_address'] else 'Not delegated'
             response_text += f"🎯 *Stake Address:* `{stake_address}`\n"
-
-            # Script address
             response_text += f"📜 *Script Address:* `{'Yes' if result['script_address'] else 'No'}`\n"
 
             # UTXO Information
@@ -232,11 +232,9 @@ def register_base_handlers(bot: TeleBot):
                 response_text += "\n💎 *UTXO Information:*\n"
                 for utxo in result['utxo_set'][:3]:  # Show first 3 UTXOs
                     response_text += f"\n▪️ *UTXO:*\n"
-                    response_text += f"  TX Hash: `{utxo['tx_hash'][:8]}...`\n"
-                    value_ada = int(utxo['value']) / 1_000_000
-                    response_text += f"  Value: `{value_ada:,.6f} ADA`\n"
+                    response_text += f"  TX Hash: `{utxo['tx_hash']}`\n"
+                    response_text += f"  Value: `{FormatUtils.format_ada(utxo['value'])} ADA`\n"
 
-                    # Show assets in UTXO if any
                     if 'asset_list' in utxo and utxo['asset_list']:
                         response_text += "  *Assets:*\n"
                         for asset in utxo['asset_list']:
@@ -247,7 +245,7 @@ def register_base_handlers(bot: TeleBot):
                                 asset_name = asset['asset_name']
 
                             response_text += f"    • {asset_name}: `{asset['quantity']}`\n"
-                            response_text += f"      Policy: `{asset['policy_id'][:8]}...`\n"
+                            response_text += f"      Policy: `{asset['policy_id']}`\n"
 
                 if len(result['utxo_set']) > 3:
                     response_text += f"\n_...and {len(result['utxo_set']) - 3} more UTXOs_"
