@@ -1,7 +1,9 @@
+import koios_api
 from telebot import TeleBot
 from src.bot.services.dex_service import DexHunterService
 from src.bot.services.cardano_service import CardanoService
 from src.bot.utils.formatters import FormatUtils
+
 
 def register_base_handlers(bot: TeleBot):
     @bot.message_handler(commands=['start'])
@@ -212,26 +214,67 @@ def register_base_handlers(bot: TeleBot):
                 bot.reply_to(message, f"Error: {result}")
                 return
 
-            response_text = "📍 Address Information:\n\n"
-            response_text += f"Balance: {result['balance'] / 10000:.6f} ADA\n"
-            response_text += f"Stake Address: {result['stake_address']}\n"
-            response_text += f"Script Address: {'Yes' if result['script_address'] else 'No'}\n"
+            response_text = "📍 *Address Information*\n\n"
 
-            if result['tokens']:
-                response_text += "\n🎭 Tokens:\n"
-                for token in result['tokens'][:5]:
-                    response_text += f"- {token['asset_name']}: {token['quantity']}\n"
+            # Convert balance from lovelace to ADA (1 ADA = 1,000,000 lovelace)
+            balance_ada = int(result['balance']) / 1_000_000
+            response_text += f"💰 *Balance:* `{balance_ada:,.6f} ADA`\n"
 
-            bot.reply_to(message, response_text)
+            # Handle null stake address
+            stake_address = result['stake_address'] if result['stake_address'] else 'Not delegated'
+            response_text += f"🎯 *Stake Address:* `{stake_address}`\n"
+
+            # Script address
+            response_text += f"📜 *Script Address:* `{'Yes' if result['script_address'] else 'No'}`\n"
+
+            # UTXO Information
+            if 'utxo_set' in result and result['utxo_set']:
+                response_text += "\n💎 *UTXO Information:*\n"
+                for utxo in result['utxo_set'][:3]:  # Show first 3 UTXOs
+                    response_text += f"\n▪️ *UTXO:*\n"
+                    response_text += f"  TX Hash: `{utxo['tx_hash'][:8]}...`\n"
+                    value_ada = int(utxo['value']) / 1_000_000
+                    response_text += f"  Value: `{value_ada:,.6f} ADA`\n"
+
+                    # Show assets in UTXO if any
+                    if 'asset_list' in utxo and utxo['asset_list']:
+                        response_text += "  *Assets:*\n"
+                        for asset in utxo['asset_list']:
+                            try:
+                                # Try to decode asset name from hex
+                                asset_name = bytes.fromhex(asset['asset_name']).decode('utf-8')
+                            except:
+                                asset_name = asset['asset_name']
+
+                            response_text += f"    • {asset_name}: `{asset['quantity']}`\n"
+                            response_text += f"      Policy: `{asset['policy_id'][:8]}...`\n"
+
+                if len(result['utxo_set']) > 3:
+                    response_text += f"\n_...and {len(result['utxo_set']) - 3} more UTXOs_"
+
+            bot.reply_to(message, response_text, parse_mode='Markdown')
 
         except Exception as e:
+            print(f"Error details: {str(e)}")  # For debugging
             bot.reply_to(message, f"❌ Error: {str(e)}")
 
     @bot.message_handler(commands=['epoch'])
     def get_epoch(message):
+        # Check if echo_no is provided
+        command_parts = message.text.split()
+        if len(command_parts) > 1:
+            epoch_no = int(command_parts[1])
+        else:
+            tip_info = CardanoService.get_cardano_tip()
+            if not tip_info or not isinstance(tip_info, dict):
+                bot.reply_to(message, "Error: Could not fetch current epoch")
+                return
+
+            epoch_no = tip_info['epoch_no']
+
         bot.reply_to(message, "Fetching epoch information... ⏳")
         cardano_service = CardanoService()
-        result = cardano_service.get_epoch_info()
+        result = cardano_service.get_epoch_info(epoch_no)
 
         if isinstance(result, str):
             bot.reply_to(message, f"Error: {result}")

@@ -49,9 +49,22 @@ class CardanoService:
             return f"Error: {str(e)}"
 
     @staticmethod
-    def get_epoch_info():
+    def get_epoch_info(epoch_no=None):
         try:
-            epoch_info = koios_api.get_epoch_info()
+            epoch_info = koios_api.get_epoch_info(int(epoch_no))
+            if not epoch_info or not isinstance(epoch_info, list):
+               return "Error: Invalid response from API"
+
             return epoch_info[0] if epoch_info else None
         except Exception as e:
             return f"Error: {str(e)}"
+
+    @staticmethod
+    def get_address_info(address):
+        """Get address information"""
+        try:
+            address_info = koios_api.get_address_info([address])
+            return address_info[0] if address_info else None
+        except Exception as e:
+            return f"Error: {str(e)}"
+
