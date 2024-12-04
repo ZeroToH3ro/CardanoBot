@@ -76,7 +76,7 @@ class WorkerService:
             self.logger.error(f"Error processing fear and greed data: {str(e)}")
 
     def _format_fear_greed_message(self, data):
-        """Format fear and greed message"""
+        """Format fear and greed message with beautiful styling"""
         # Calculate buy/sell ratio
         buy_volume = data.get('global_buy_volume', 0)
         sell_volume = data.get('global_sell_volume', 0)
@@ -88,19 +88,22 @@ class WorkerService:
         else:
             value = 50  # Default neutral value
 
-        # Determine classification based on buy ratio
-        if value >= 75:
-            classification = 'Extreme Greed'
-        elif value >= 60:
-            classification = 'Greed'
-        elif value >= 40:
-            classification = 'Neutral'
-        elif value >= 25:
-            classification = 'Fear'
-        else:
-            classification = 'Extreme Fear'
+        # Determine classification and emoji
+        classifications = {
+            (75, 101): ('Extreme Greed', '🤯', '🟥'),
+            (60, 75): ('Greed', '🤑', '🟧'),
+            (40, 60): ('Neutral', '😐', '⬜️'),
+            (25, 40): ('Fear', '😨', '🟨'),
+            (0, 25): ('Extreme Fear', '😱', '🟦')
+        }
 
-        # Format volumes in billions or millions
+        classification, emoji, color = next(
+            (info for (low, high), info in classifications.items()
+             if low <= value < high),
+            ('Unknown', '❓', '⬜️')
+        )
+
+        # Format volumes
         def format_volume(vol):
             if vol >= 1_000_000_000:
                 return f"{vol / 1_000_000_000:.2f}B"
@@ -110,36 +113,50 @@ class WorkerService:
         sell_vol_formatted = format_volume(sell_volume)
         total_vol_formatted = format_volume(total_volume)
 
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        # Define emoji based on classification
-        emoji_map = {
-            'Extreme Fear': '😱',
-            'Fear': '😨',
-            'Neutral': '😐',
-            'Greed': '🤑',
-            'Extreme Greed': '🤯'
-        }
-        emoji = emoji_map.get(classification, '❓')
-
-        # Create progress bar
+        # Create a more beautiful progress bar
         progress_length = 20
         filled_length = int(value * progress_length / 100)
-        progress_bar = '█' * filled_length + '▒' * (progress_length - filled_length)
+        empty_length = progress_length - filled_length
 
-        message = (
-            f"<b>Market Sentiment Index</b> {emoji}\n\n"
-            f"Value: {value}\n"
-            f"Classification: {classification}\n"
-            f"[{progress_bar}] {value}%\n\n"
-            f"📊 Trading Volume:\n"
-            f"Buy Volume: {buy_vol_formatted}\n"
-            f"Sell Volume: {sell_vol_formatted}\n"
-            f"Total Volume: {total_vol_formatted}\n\n"
-            f"📈 Trades Count:\n"
-            f"Buys: {data.get('global_buy_count', 0):,}\n"
-            f"Sells: {data.get('global_sell_count', 0):,}\n"
-            f"Total: {data.get('count', 0):,}\n\n"
-            f"🕒 {timestamp}"
+        # Define colors for the progress bar
+        filled_bar = '█' * filled_length
+        empty_bar = '▒' * empty_length
+        progress_bar = f"{filled_bar}{empty_bar} {value}%"
+
+        # Create a colored progress bar representation
+        color_progress_bar = (
+            f"<b>[</b>{filled_bar}<b>{empty_bar}</b><b>]</b> {value}%"
         )
+
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # Build the message with beautiful formatting
+        message = (
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 <b>MARKET SENTIMENT INDEX</b> {emoji}\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+            f"📊 <b>Current Status</b>\n"
+            f"• Sentiment: {classification} {emoji}\n"
+            f"• Value: {value}%\n"
+            f"• Indicator: {color_progress_bar}\n\n"
+
+            f"💹 <b>Volume Analysis</b>\n"
+            f"• Buy Volume:  {color} {buy_vol_formatted}\n"
+            f"• Sell Volume: {color} {sell_vol_formatted}\n"
+            f"• Total Volume: {total_vol_formatted}\n\n"
+
+            f"📈 <b>Trade Statistics</b>\n"
+            f"• Buy Orders:  {data.get('global_buy_count', 0):,}\n"
+            f"• Sell Orders: {data.get('global_sell_count', 0):,}\n"
+            f"• Total Trades: {data.get('count', 0):,}\n\n"
+
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕒 <i>Last Updated: {timestamp}</i>\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            "🔥 <b>Want more market insights?</b>\n"
+            "📢 Join @cardano_hunter now!\n"
+            "━━━━━━━━━━━━━━━━━━━━━"
+        )
+
         return message
