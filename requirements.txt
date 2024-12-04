@@ -1,4 +1,5 @@
 python-telegram-bot>=13.7
 requests>=2.28.0
 python-dotenv>=0.19.0
-koios-python-api>=0.1.0
+koios-api>=1.1.0.1
+pyTelegramBotAPI~=4.24.0
