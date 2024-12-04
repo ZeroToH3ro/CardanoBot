@@ -19,7 +19,7 @@ class DexHunterService:
             return f"Error: {str(e)}"
 
     @staticmethod
-    def get_swap_estimate(amount_in, token_in, token_out, slippage=5):
+    def get_swap_estimate(amount_in, token_in="", token_out="", slippage=5):
         """Get swap estimate from DexHunter"""
         url = f"{DEXHUNTER_API_URL}/swap/estimate"
         payload = {

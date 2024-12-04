@@ -82,31 +82,75 @@ def register_base_handlers(bot: TeleBot):
 
     @bot.message_handler(commands=['estimate'])
     def get_estimate(message):
+        global amount, token_in, token_out
         try:
+            dex_service = DexHunterService()
             parts = message.text.split()
-            if len(parts) != 4:
-                bot.reply_to(message, "❌ Invalid format. Use: /estimate <amount> <token_in> <token_out>")
-                return
-
-            _, amount, token_in, token_out = parts
+            if len(parts) == 3:
+                __, amount, token = parts
+                try:
+                    result_in = dex_service.get_swap_estimate(amount, token_in=token, token_out="", slippage=5)
+                    if not result_in or isinstance(result_in, str):
+                        result_out = dex_service.get_swap_estimate(amount, token_in="", token_out=token, slippage=5)
+                        if isinstance(result_out, str) or not result_out:
+                            bot.reply_to(message, f"Error calculating swap estimate: {result_in}")
+                            return
+                        token_in = ""
+                        token_out = token
+                    else:
+                        token_in = token
+                        token_out = ""
+                except Exception as e:
+                    bot.reply_to(message, f"Error fetching estimated swap estimate: {e}")
+                    return
 
             bot.reply_to(message, "Calculating swap estimate... 🔄")
-
-            dex_service = DexHunterService()
             result = dex_service.get_swap_estimate(amount, token_in, token_out)
-
             if isinstance(result, str):
                 bot.reply_to(message, f"Error getting estimate: {result}")
                 return
 
+            # Format response based on the new JSON structure
             response_text = "💱 Swap Estimate:\n\n"
-            response_text += f"Input: {amount} {result.get('token_in_symbol', 'N/A')}\n"
-            response_text += f"Output: {result.get('amount_out', 'N/A')} {result.get('token_out_symbol', 'N/A')}\n"
-            response_text += f"Price Impact: {result.get('price_impact', 'N/A')}%\n"
-            response_text += f"Route: {result.get('route_summary', 'N/A')}"
+
+              # Input amount
+            response_text += f"Input Amount: {amount}\n"
+
+              # Output amount
+            total_output = result.get('total_output', 'N/A')
+            response_text += f"Output Amount: {total_output}\n"
+
+              # Price details
+            net_price = result.get('net_price', 'N/A')
+            net_price_reverse = result.get('net_price_reverse', 'N/A')
+            response_text += f"Price: 1 Token = {net_price} / {net_price_reverse}\n"
+
+              # Fee details
+            total_fee = result.get('total_fee', 0)
+            batcher_fee = result.get('batcher_fee', 0)
+            partner_fee = result.get('partner_fee', 0)
+            response_text += f"Fees:\n"
+            response_text += f"- Total Fee: {total_fee}\n"
+            response_text += f"- Batcher Fee: {batcher_fee}\n"
+            response_text += f"- Partner Fee: {partner_fee}\n"
+
+              # Split details (if available)
+            splits = result.get('splits', [])
+            if splits:
+                split = splits[0]  # Get first split
+            response_text += f"\nRoute Details:\n"
+            response_text += f"- DEX: {split.get('dex', 'N/A')}\n"
+            response_text += f"- Price Impact: {split.get('price_impact', 'N/A') * 100:.4f}%\n"
+            response_text += f"- Pool Fee: {split.get('pool_fee', 'N/A') * 100:.2f}%\n"
+
+              # Output with/without slippage
+            output_with_slippage = split.get('expected_output', 'N/A')
+            output_without_slippage = split.get('expected_output_without_slippage', 'N/A')
+            response_text += f"\nOutput Details:\n"
+            response_text += f"- With Slippage: {output_with_slippage}\n"
+            response_text += f"- Without Slippage: {output_without_slippage}\n"
 
             bot.reply_to(message, response_text)
-
         except Exception as e:
             bot.reply_to(message, f"❌ Error: {str(e)}")
 
