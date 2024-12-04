@@ -1,5 +1,5 @@
 import koios_api
-from telebot import TeleBot
+from telebot import TeleBot, types
 from src.bot.services.dex_service import DexHunterService
 from src.bot.services.cardano_service import CardanoService
 from src.bot.services.worker_service import WorkerService
@@ -10,22 +10,104 @@ from src.bot.utils.mapping_token_name import FormatTokenName
 def register_base_handlers(bot: TeleBot):
     @bot.message_handler(commands=['start'])
     def send_welcome(message):
+          # Create inline keyboard markup
+        markup = types.InlineKeyboardMarkup(row_width=2)
+
+          # DexHunter buttons
+        dex_button = types.InlineKeyboardButton("🔄 DexHunter", callback_data="dex_menu")
+        cardano_button = types.InlineKeyboardButton("💎 Cardano", callback_data="cardano_menu")
+
+          # Add buttons to markup
+        markup.add(dex_button, cardano_button)
+
         welcome_text = """
-        Welcome to DexHunter & Cardano Bot! 🚀
+    Welcome to DexHunter & Cardano Bot! 🚀
 
-        DexHunter Commands:
-        /trending - Get trending pairs (default 5m)
-        /trending_1h - Get trending pairs (1h)
-        /trending_24h - Get trending pairs (24h)
-        /estimate <amount> <token_in> <token_out> - Get swap estimate
+    Please select a category below to see available commands:
+    """
+        bot.reply_to(message, welcome_text, reply_markup=markup)
 
-        Cardano Commands:
-        /tip - Get latest block information
-        /adaprice - Get current ADA price
-        /epoch - Get current epoch information
-        /address <address> - Get address information
-        """
-        bot.reply_to(message, welcome_text)
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_query(call):
+        if call.data == "dex_menu":
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            trending_button = types.InlineKeyboardButton("📈 Trending", callback_data="trending_options")
+            estimate_button = types.InlineKeyboardButton("💱 Estimate", callback_data="estimate_info")
+            fear_greed_button = types.InlineKeyboardButton("😨 Fear & Greed", callback_data="fear_greed")
+            back_button = types.InlineKeyboardButton("🔙 Back to Main", callback_data="main_menu")
+
+            markup.add(trending_button, estimate_button, fear_greed_button, back_button)
+
+            bot.edit_message_text(
+            chat_id = call.message.chat.id,
+            message_id = call.message.message_id,
+            text = "🔄 DexHunter Commands:\n\n"
+            "• /trending - Get trending pairs (5m)\n"
+            "• /trending_1h - Get trending pairs (1h)\n"
+            "• /trending_24h - Get trending pairs (24h)\n"
+            "• /estimate <amount> <token_in> <token_out> - Get swap estimate\n"
+            "• /feargreed - Get Fear & Greed Index",
+            reply_markup = markup
+            )
+        elif call.data == "cardano_menu":
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            tip_button = types.InlineKeyboardButton("🎯 Tip", callback_data="tip_info")
+            price_button = types.InlineKeyboardButton("💰 ADA Price", callback_data="price_info")
+            epoch_button = types.InlineKeyboardButton("⏳ Epoch", callback_data="epoch_info")
+            address_button = types.InlineKeyboardButton("📍 Address", callback_data="address_info")
+            back_button = types.InlineKeyboardButton("🔙 Back to Main", callback_data="main_menu")
+
+            markup.add(tip_button, price_button, epoch_button, address_button, back_button)
+
+            bot.edit_message_text(
+            chat_id = call.message.chat.id,
+            message_id = call.message.message_id,
+            text = "💎 Cardano Commands:\n\n"
+            "• /tip - Get latest block information\n"
+            "• /adaprice - Get current ADA price\n"
+            "• /epoch - Get current epoch information\n"
+            "• /address <address> - Get address information",
+            reply_markup = markup
+            )
+        elif call.data == "main_menu":
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            dex_button = types.InlineKeyboardButton("🔄 DexHunter", callback_data="dex_menu")
+            cardano_button = types.InlineKeyboardButton("💎 Cardano", callback_data="cardano_menu")
+            markup.add(dex_button, cardano_button)
+
+            bot.edit_message_text(
+            chat_id = call.message.chat.id,
+            message_id = call.message.message_id,
+            text = "Welcome to DexHunter & Cardano Bot! 🚀\n\nPlease select a category below to see available commands:",
+            reply_markup = markup
+            )
+          # Handle specific command information
+        elif call.data in ["trending_options", "estimate_info", "fear_greed", "tip_info",
+        "price_info", "epoch_info", "address_info"]:
+            command_info = {
+            "trending_options": "Use /trending, /trending_1h, or /trending_24h to get trending pairs",
+            "estimate_info": "Use /estimate <amount> <token_in> <token_out> to get swap estimate",
+            "fear_greed": "Use /feargreed to get the current Fear & Greed Index",
+            "tip_info": "Use /tip to get the latest block information",
+            "price_info": "Use /adaprice to get current ADA price",
+            "epoch_info": "Use /epoch to get current epoch information",
+            "address_info": "Use /address <address> to get address information"
+            }
+
+        markup = types.InlineKeyboardMarkup()
+        back_button = types.InlineKeyboardButton("🔙 Back",
+        callback_data = "dex_menu" if call.data in ["trending_options", "estimate_info", "fear_greed"]
+         else "cardano_menu"
+        )
+        markup.add(back_button)
+
+        bot.answer_callback_query(call.id)
+        bot.edit_message_text(
+        chat_id = call.message.chat.id,
+        message_id = call.message.message_id,
+        text = command_info[call.data],
+        reply_markup = markup
+        )
 
     # Dex Service
 
@@ -44,15 +126,14 @@ def register_base_handlers(bot: TeleBot):
         tokens_mapping = FormatTokenName.load_token_name()
 
         if isinstance(result, str):
-            bot.reply_to(message, f"Error fetching trending pairs: {result}")
+            bot.reply_to(message, f"❌ Error fetching trending pairs: {result}")
             return
 
-        response_text = f"🔥 Trending Pairs ({period}):\n\n"
+        response_text = f"🔥 <b>TRENDING PAIRS ({period.upper()})</b> 🔥\n\n"
         pairs = result[:10] if len(result) > 10 else result
 
-        for pair in pairs:
+        for idx, pair in enumerate(pairs, 1):
             token_id = pair['token_id']
-            short_token = token_id[:10] + "..." + token_id[-4:] if len(token_id) > 14 else token_id
             token_name = tokens_mapping.get(token_id, "Unknown Token")
             current_volume = pair['current_period_volume']
             volume_change = pair['volume_change_percentage']
@@ -62,23 +143,35 @@ def register_base_handlers(bot: TeleBot):
             volume_formatted = f"{current_volume:,.2f}"
             price_formatted = f"{current_price:.8f}" if current_price < 0.01 else f"{current_price:.4f}"
 
-            response_text += f"📊 Token Id: {short_token}\n"
-            response_text += f"📊 Token Name: {token_name}\n"
-            response_text += f"💰 Current Price: {price_formatted}\n"
-            response_text += f"📈 Volume: ${volume_formatted}\n"
-            response_text += f"📊 Volume Change: {volume_change:,.2f}%\n"
-            response_text += f"💹 Price Change: {price_change:,.2f}%\n"
-            response_text += f"🔄 Trades: {pair['amount_buys']} buys, {pair['amount_sales']} sales\n\n"
-            response_text += "----\n\n"
+            # Add emoji based on price change
+            price_emoji = "🟢" if price_change > 0 else "🔴" if price_change < 0 else "⚪️"
+            volume_emoji = "📈" if volume_change > 0 else "📉" if volume_change < 0 else "➖"
+
+            response_text += f"#{idx} <b>{token_name}</b> - {token_id}\n"
+            response_text += f"├ 💰 Price: ${price_formatted}\n"
+            response_text += f"├ {price_emoji} Price Change: {price_change:+,.2f}%\n"
+            response_text += f"├ 💎 Volume: ${volume_formatted}\n"
+            response_text += f"├ {volume_emoji} Vol Change: {volume_change:+,.2f}%\n"
+            response_text += f"└ 🔄 Trades: {pair['amount_buys']}↗️ | {pair['amount_sales']}↘️\n\n"
 
         if not pairs:
-            response_text += "No trending pairs found for this period."
+            response_text += "❌ No trending pairs found for this period.\n"
+
+        # Add footer with channel promotion
+        response_text += "━━━━━━━━━━━━━━━━━━━━━\n"
+        response_text += "🔥 <b>Want Fear and Greed updates?</b>\n"
+        response_text += "📢 Join @cardano_hunter now!\n"
+        response_text += "━━━━━━━━━━━━━━━━━━━━━"
 
         if len(response_text) > 4096:
-            for i in range(0, len(response_text), 4096):
-                bot.reply_to(message, response_text[i:i + 4096])
+            chunks = [response_text[i:i + 4096] for i in range(0, len(response_text), 4096)]
+            for i, chunk in enumerate(chunks):
+                # Add footer only to the last chunk
+                if i == len(chunks) - 1 and not chunk.endswith("Join @cardano_hunter now!"):
+                    chunk += "\n\n📢 Join @cardano_hunter now!"
+                bot.reply_to(message, chunk, parse_mode='HTML')
         else:
-            bot.reply_to(message, response_text)
+            bot.reply_to(message, response_text, parse_mode='HTML')
 
     @bot.message_handler(commands=['estimate'])
     def get_estimate(message):
